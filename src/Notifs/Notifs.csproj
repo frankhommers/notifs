@@ -13,6 +13,7 @@
     <RepositoryUrl>https://github.com/frankhommers/notifs</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Description>Simple cross-platform desktop notifications for .NET (Windows, macOS, Linux)</Description>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CliWrap" Version="3.10.0" />
