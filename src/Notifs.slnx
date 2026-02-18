@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Notifs/Notifs.csproj"/>
+  <Project Path="NotifsTestApp/NotifsTestApp.csproj"/>
+</Solution>

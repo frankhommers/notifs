@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Notifs</PackageId>
+    <Authors>Frank Hommers</Authors>
+    <Company>Initialize</Company>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <LangVersion>default</LangVersion>
+    <Configurations>Debug;Release;NuGet</Configurations>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/frankhommers/notifs</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Description>Simple cross-platform desktop notifications for .NET (Windows, macOS, Linux)</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CliWrap" Version="3.10.0" />
+    <PackageReference Include="MinVer" Version="7.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='NuGet'">
+    <Optimize>True</Optimize>
+  </PropertyGroup>
+  <Target Name="NuGet" Condition="'$(Configuration)'=='NuGet'" AfterTargets="Build">
+    <Exec Command="dotnet nuget push $(MSBuildProjectDirectory)/bin/Release/$(PackageId).$(Version).nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate --api-key $(NuGetApiKey)"/>
+  </Target>
+</Project>
