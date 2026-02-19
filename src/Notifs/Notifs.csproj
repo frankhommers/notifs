@@ -12,7 +12,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/frankhommers/notifs</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <Description>Simple cross-platform desktop notifications for .NET (Windows, macOS, Linux)</Description>
+    <Description>Cross-platform notifications for .NET with desktop and terminal routing (Windows, macOS, Linux)</Description>
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

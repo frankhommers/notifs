@@ -1,11 +1,106 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using CliWrap;
 
 namespace Notifs;
 
+public enum NotificationMode
+{
+  AutoDesktopFirst,
+  AutoTerminalFirst,
+  DesktopOnly,
+  TerminalOnly,
+  Off
+}
+
+public enum TerminalNotificationPreference
+{
+  Auto,
+  Osc9Only,
+  BelOnly
+}
+
+public sealed class NotificationOptions
+{
+  public NotificationMode Mode { get; set; } = NotificationMode.AutoDesktopFirst;
+  public TerminalNotificationPreference TerminalPreference { get; set; } = TerminalNotificationPreference.Auto;
+  public bool DisableDesktopFallback { get; set; }
+  public bool ThrowOnFailure { get; set; }
+  public bool EnableDebugOutput { get; set; }
+}
+
 public static class Notification
 {
   public static async Task NotifyAsync(string applicationName, string title, string message)
+  {
+    await NotifyAsync(applicationName, title, message, options: null);
+  }
+
+  public static async Task NotifyAsync(
+    string applicationName,
+    string title,
+    string message,
+    NotificationOptions? options)
+  {
+    NotificationOptions resolvedOptions = options ?? new NotificationOptions();
+    if (resolvedOptions.Mode == NotificationMode.Off)
+    {
+      return;
+    }
+
+    TerminalCapabilities terminalCapabilities = NotificationRouting.DetectTerminalCapabilities(
+      Environment.GetEnvironmentVariable,
+      Console.IsOutputRedirected);
+
+    IReadOnlyList<NotificationRoute> routeOrder = NotificationRouting.GetRouteOrder(
+      resolvedOptions,
+      terminalCapabilities);
+
+    if (resolvedOptions.EnableDebugOutput)
+    {
+      Console.Error.WriteLine(
+        $"[notifs] mode={resolvedOptions.Mode}, terminalPreference={resolvedOptions.TerminalPreference}, " +
+        $"supportsOsc9={terminalCapabilities.SupportsOsc9}, supportsOsc777={terminalCapabilities.SupportsOsc777}, supportsBel={terminalCapabilities.SupportsBel}, " +
+        $"isOutputRedirected={Console.IsOutputRedirected}");
+    }
+
+    foreach (NotificationRoute route in routeOrder)
+    {
+      if (resolvedOptions.EnableDebugOutput)
+      {
+        Console.Error.WriteLine($"[notifs] trying route={route}");
+      }
+
+      bool delivered = route switch
+      {
+        NotificationRoute.Desktop => await TrySendDesktopNotificationAsync(applicationName, title, message),
+        NotificationRoute.Osc9 => TrySendOsc9Notification(title, message),
+        NotificationRoute.Osc777 => TrySendOsc777Notification(title, message),
+        NotificationRoute.Bel => TrySendTerminalBell(),
+        _ => false
+      };
+
+      if (delivered)
+      {
+        if (resolvedOptions.EnableDebugOutput)
+        {
+          Console.Error.WriteLine($"[notifs] delivered route={route}");
+        }
+        return;
+      }
+
+      if (resolvedOptions.EnableDebugOutput)
+      {
+        Console.Error.WriteLine($"[notifs] failed route={route}");
+      }
+    }
+
+    if (resolvedOptions.ThrowOnFailure)
+    {
+      throw new InvalidOperationException("No notification backend could deliver the message.");
+    }
+  }
+
+  private static async Task<bool> TrySendDesktopNotificationAsync(string applicationName, string title, string message)
   {
     Command? notificationCommand = null;
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -21,10 +116,74 @@ public static class Notification
       notificationCommand = CreateMacOsNotificationCommand(applicationName, title, message);
     }
 
-    if (notificationCommand != null)
+    if (notificationCommand == null)
     {
-      await notificationCommand.WithValidation(CommandResultValidation.None).ExecuteAsync();
+      return false;
     }
+
+    try
+    {
+      CommandResult result = await notificationCommand.WithValidation(CommandResultValidation.None).ExecuteAsync();
+      return result.ExitCode == 0;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static bool TrySendOsc9Notification(string title, string message)
+  {
+    try
+    {
+      string payload = SanitizeTerminalText($"{title}: {message}");
+      Console.Out.Write($"\x1b]9;{payload}\x07");
+      Console.Out.Flush();
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static bool TrySendTerminalBell()
+  {
+    try
+    {
+      Console.Out.Write('\x07');
+      Console.Out.Flush();
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static bool TrySendOsc777Notification(string title, string message)
+  {
+    try
+    {
+      string safeTitle = SanitizeTerminalText(title);
+      string safeMessage = SanitizeTerminalText(message);
+      Console.Out.Write($"\x1b]777;notify;{safeTitle};{safeMessage}\x07");
+      Console.Out.Flush();
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static string SanitizeTerminalText(string value)
+  {
+    return value
+      .Replace("\u001b", " ")
+      .Replace("\u0007", " ")
+      .Replace("\r", " ")
+      .Replace("\n", " ");
   }
 
   private static Command CreateMacOsNotificationCommand(string applicationName, string title, string message)
